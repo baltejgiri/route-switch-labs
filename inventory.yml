@@ -1,12 +1,11 @@
+---
 all:
   vars:
     ansible_network_os: cisco.ios.ios
     ansible_connection: network_cli
-    ansible_user: admin  # Change to your username
-    ansible_password: Admin@123  # Change to your password
+    ansible_user: admin
+    ansible_password: Admin@123
     ansible_become: no
-   # ansible_become_method: enable
-   # ansible_become_password: cisco  # Change if different
   
   children:
     # OSPF Area 0 devices
@@ -14,7 +13,7 @@ all:
       hosts:
         CSR1:
           ansible_host: 11.11.11.11
-          router_id: "255.255.0.1"  # ABR router ID
+          router_id: "255.255.0.1"
           description: "Area Border Router between Area 0 and Area 51"
           
         SW2:
@@ -45,14 +44,18 @@ all:
           router_id: "0.0.51.2"
           description: "Area 51 Router"
     
-    # EIGRP devices (separate routing protocol)
+    # EIGRP devices
     eigrp:
       hosts:
         SW1:
           ansible_host: 172.18.1.1
           description: "EIGRP Switch"
+        
+        SW2_EIGRP:
+          ansible_host: 1.2.3.2
+          description: "SW2 - Interface 172.18.1.2 in EIGRP"
     
-    # All OSPF routers/switches for bulk operations
+    # All OSPF devices
     ospf_devices:
       children:
         area0:

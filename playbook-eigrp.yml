@@ -1,0 +1,124 @@
+---
+# EIGRP Configuration Playbook
+# Configures EIGRP AS 100 on SW1 and SW2 (one interface only)
+# EIGRP Network: 172.18.1.0/24 ONLY
+
+
+- name: Configure EIGRP
+  hosts: eigrp
+  gather_facts: no
+  
+  vars:
+    eigrp_as: 100  # EIGRP Autonomous System number
+    
+    # EIGRP Network Statements per Device
+    # Only 172.18.1.0/24 is EIGRP
+    eigrp_networks:
+      # SW1 - EIGRP Switch
+      # IP: 172.18.1.1
+      SW1:
+        - { network: "172.18.1.0", wildcard: "0.0.0.255", description: "To SW2" }
+      
+      # SW2 - Has one interface in EIGRP (172.18.1.2)
+      # Note: SW2 also participates in OSPF Area 0 with other interfaces
+      SW2_EIGRP:
+        - { network: "172.18.1.0", wildcard: "0.0.0.255", description: "To SW1" }
+  
+  tasks:
+    - name: Display Configuration Details
+      debug:
+        msg: 
+          - "============================================"
+          - "Configuring EIGRP on: {{ inventory_hostname }}"
+          - "EIGRP AS: {{ eigrp_as }}"
+          - "Description: {{ description }}"
+          - "============================================"
+    
+    - name: Configure EIGRP Process
+      cisco.ios.ios_config:
+        lines:
+          - network {{ item.network }} {{ item.wildcard }}
+        parents: router eigrp {{ eigrp_as }}
+        save_when: modified
+      loop: "{{ eigrp_networks[inventory_hostname] }}"
+      when: eigrp_networks[inventory_hostname] is defined
+      register: eigrp_config
+    
+    - name: Display EIGRP Network Statements Configured
+      debug:
+        msg: "Network {{ item.item.network }}/{{ item.item.wildcard }} added to EIGRP AS {{ eigrp_as }} - {{ item.item.description }}"
+      loop: "{{ eigrp_config.results }}"
+      when: 
+        - eigrp_config.results is defined
+        - item.changed
+    
+    - name: Save Configuration
+      cisco.ios.ios_config:
+        save_when: always
+    
+    - name: Wait for EIGRP Convergence
+      pause:
+        seconds: 10
+        prompt: "Waiting for EIGRP to converge..."
+      run_once: true
+    
+    - name: Verify EIGRP Neighbors
+      cisco.ios.ios_command:
+        commands:
+          - show ip eigrp neighbors
+      register: eigrp_neighbors
+    
+    - name: Verify EIGRP Topology
+      cisco.ios.ios_command:
+        commands:
+          - show ip eigrp topology
+      register: eigrp_topology
+    
+    - name: Verify EIGRP Routes
+      cisco.ios.ios_command:
+        commands:
+          - show ip route eigrp
+      register: eigrp_routes
+    
+    - name: Display EIGRP Verification
+      debug:
+        msg: 
+          - "============================================"
+          - "{{ inventory_hostname }} - EIGRP Verification"
+          - "============================================"
+          - ""
+          - "--- EIGRP Neighbors ---"
+          - "{{ eigrp_neighbors.stdout_lines[0] }}"
+          - ""
+          - "--- EIGRP Topology ---"
+          - "{{ eigrp_topology.stdout_lines[0] }}"
+          - ""
+          - "--- EIGRP Routes ---"
+          - "{{ eigrp_routes.stdout_lines[0] }}"
+
+- name: EIGRP Configuration Summary
+  hosts: localhost
+  gather_facts: no
+  tasks:
+    - name: Display Summary
+      debug:
+        msg:
+          - "============================================"
+          - "EIGRP Configuration Complete!"
+          - "============================================"
+          - ""
+          - "EIGRP AS: 100"
+          - ""
+          - "EIGRP Participants:"
+          - "  - SW1: 172.18.1.1"
+          - "  - SW2: 1.2.3.2 (only interface 172.18.1.2)"
+          - ""
+          - "EIGRP Network:"
+          - "  - 172.18.1.0/24 (SW1 ↔ SW2)"
+          - ""
+          - "Note: 112.112.112.0/24 and 122.122.122.0/24 are OSPF Area 51, not EIGRP"
+          - ""
+          - "Next Steps:"
+          - "  1. Verify EIGRP neighbors (SW1 ↔ SW2)"
+          - "  2. Configure redistribution between OSPF and EIGRP on SW2"
+          - "     (SW2 is the boundary between OSPF Area 0 and EIGRP)"
