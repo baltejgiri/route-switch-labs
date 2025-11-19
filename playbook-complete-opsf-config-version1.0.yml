@@ -1,0 +1,196 @@
+---
+# OSPF Multi-Area Configuration Playbook
+# Configures OSPF Process 1 on all Area 0 and Area 51 devices
+# Router-IDs follow convention: 0.0.x.y where x=area, y=device
+# ABR uses: 255.255.0.<device>
+
+- name: Configure OSPF Area 0 and Area 51
+  hosts: ospf_devices
+  gather_facts: no
+  
+  vars:
+    ospf_process_id: 1
+    
+    # OSPF Network Statements per Device
+    # Format: network <address> <wildcard> area <area_id>
+    ospf_networks:
+      # ============================================
+      # CSR1 - Area Border Router (ABR)
+      # Router-ID: 255.255.0.1
+      # Connects Area 0 and Area 51
+      # ============================================
+      CSR1:
+        - { network: "1.2.3.0", wildcard: "0.0.0.255", area: 0, description: "To SW2" }
+        - { network: "192.168.1.0", wildcard: "0.0.0.255", area: 0, description: "To SW3" }
+        - { network: "11.11.11.0", wildcard: "0.0.0.255", area: 51, description: "To R1" }
+        - { network: "21.21.21.0", wildcard: "0.0.0.255", area: 51, description: "To R2" }
+      
+      # ============================================
+      # OSPF Area 0 Devices
+      # ============================================
+      
+      # SW2 - Area 0, Device 2
+      # Router-ID: 0.0.0.2
+      SW2:
+        - { network: "1.2.3.0", wildcard: "0.0.0.255", area: 0, description: "To CSR1" }
+        - { network: "3.3.3.0", wildcard: "0.0.0.255", area: 0, description: "To SW3" }
+        - { network: "172.18.1.0", wildcard: "0.0.0.255", area: 0, description: "Shared network" }
+      
+      # SW3 - Area 0, Device 3
+      # Router-ID: 0.0.0.3
+      SW3:
+        - { network: "192.168.1.0", wildcard: "0.0.0.255", area: 0, description: "To CSR1" }
+        - { network: "3.3.3.0", wildcard: "0.0.0.255", area: 0, description: "To SW2" }
+        - { network: "172.18.1.0", wildcard: "0.0.0.255", area: 0, description: "Shared network" }
+      
+      # ============================================
+      # OSPF Area 51 Devices
+      # ============================================
+      
+      # CSR2 - Area 51, Device 22 (CSR becomes YY)
+      # Router-ID: 0.0.51.22
+      CSR2:
+        - { network: "22.22.22.0", wildcard: "0.0.0.255", area: 51, description: "To R2" }
+        - { network: "122.122.122.0", wildcard: "0.0.0.255", area: 51, description: "To R1" }
+      
+      # R1 - Area 51, Device 1
+      # Router-ID: 0.0.51.1
+      # Note: R1 also participates in EIGRP (configured separately)
+      R1:
+        - { network: "11.11.11.0", wildcard: "0.0.0.255", area: 51, description: "To CSR1" }
+        - { network: "112.112.112.0", wildcard: "0.0.0.255", area: 51, description: "Shared Area 51 network" }
+      
+      # R2 - Area 51, Device 2
+      # Router-ID: 0.0.51.2
+      R2:
+        - { network: "21.21.21.0", wildcard: "0.0.0.255", area: 51, description: "To CSR1" }
+        - { network: "22.22.22.0", wildcard: "0.0.0.255", area: 51, description: "To CSR2" }
+  
+  tasks:
+    - name: Display Configuration Details
+      debug:
+        msg: 
+          - "============================================"
+          - "Configuring: {{ inventory_hostname }}"
+          - "Router-ID: {{ router_id }}"
+          - "OSPF Process: {{ ospf_process_id }}"
+          - "Description: {{ description }}"
+          - "============================================"
+    
+    - name: Configure OSPF Process and Router ID
+      cisco.ios.ios_config:
+        lines:
+          - router-id {{ router_id }}
+        parents: router ospf {{ ospf_process_id }}
+        save_when: modified
+      register: ospf_config
+    
+    - name: Display Router ID Configuration Result
+      debug:
+        msg: "Router ID {{ router_id }} configured on {{ inventory_hostname }}"
+      when: ospf_config.changed
+    
+    - name: Configure OSPF Network Statements
+      cisco.ios.ios_config:
+        lines:
+          - network {{ item.network }} {{ item.wildcard }} area {{ item.area }}
+        parents: router ospf {{ ospf_process_id }}
+        save_when: modified
+      loop: "{{ ospf_networks[inventory_hostname] }}"
+      when: ospf_networks[inventory_hostname] is defined
+      register: network_config
+    
+    - name: Display Network Statements Configured
+      debug:
+        msg: "Network {{ item.item.network }}/{{ item.item.wildcard }} added to Area {{ item.item.area }} - {{ item.item.description }}"
+      loop: "{{ network_config.results }}"
+      when: 
+        - network_config.results is defined
+        - item.changed
+    
+    - name: Save Configuration
+      cisco.ios.ios_config:
+        save_when: always
+    
+    - name: Wait for OSPF Convergence
+      pause:
+        seconds: 20
+        prompt: "Waiting for OSPF to converge across all areas..."
+      run_once: true
+    
+    - name: Verify OSPF Process
+      cisco.ios.ios_command:
+        commands:
+          - show ip ospf
+      register: ospf_process
+    
+    - name: Verify OSPF Neighbors
+      cisco.ios.ios_command:
+        commands:
+          - show ip ospf neighbor
+      register: ospf_neighbors
+    
+    - name: Verify OSPF Interfaces
+      cisco.ios.ios_command:
+        commands:
+          - show ip ospf interface brief
+      register: ospf_interfaces
+    
+    - name: Verify OSPF Routes
+      cisco.ios.ios_command:
+        commands:
+          - show ip route ospf
+      register: ospf_routes
+    
+    - name: Display OSPF Verification for {{ inventory_hostname }}
+      debug:
+        msg: 
+          - "============================================"
+          - "{{ inventory_hostname }} - OSPF Verification"
+          - "============================================"
+          - ""
+          - "--- OSPF Process ---"
+          - "{{ ospf_process.stdout_lines[0] }}"
+          - ""
+          - "--- OSPF Neighbors ---"
+          - "{{ ospf_neighbors.stdout_lines[0] }}"
+          - ""
+          - "--- OSPF Interfaces ---"
+          - "{{ ospf_interfaces.stdout_lines[0] }}"
+          - ""
+          - "--- OSPF Routes ---"
+          - "{{ ospf_routes.stdout_lines[0] }}"
+
+- name: OSPF Configuration Summary
+  hosts: localhost
+  gather_facts: no
+  tasks:
+    - name: Display Summary
+      debug:
+        msg:
+          - "============================================"
+          - "OSPF Multi-Area Configuration Complete!"
+          - "============================================"
+          - ""
+          - "OSPF Process ID: 1"
+          - ""
+          - "Area 0 (Backbone):"
+          - "  - CSR1 (ABR): 255.255.0.1"
+          - "  - SW2: 0.0.0.2"
+          - "  - SW3: 0.0.0.3"
+          - "  Networks: 1.2.3.0/24, 3.3.3.0/24, 192.168.1.0/24, 172.18.1.0/24"
+          - ""
+          - "Area 51:"
+          - "  - CSR1 (ABR): 255.255.0.1"
+          - "  - CSR2: 0.0.51.22"
+          - "  - R1: 0.0.51.1"
+          - "  - R2: 0.0.51.2"
+          - "  Networks: 11.11.11.0/24, 21.21.21.0/24, 22.22.22.0/24,"
+          - "            112.112.112.0/24, 122.122.122.0/24"
+          - ""
+          - "Next Steps:"
+          - "  1. Verify all OSPF neighbors are in FULL state"
+          - "  2. Check inter-area routes (Area 0 ↔ Area 51)"
+          - "  3. Test connectivity between areas"
+          - "  4. Configure EIGRP (use separate playbook)"
+          - "  5. Configure OSPF ↔ EIGRP redistribution"

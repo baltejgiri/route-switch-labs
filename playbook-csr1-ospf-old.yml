@@ -1,0 +1,27 @@
+
+---
+- name: Configure OSPF Router ID on CSR1
+  hosts: CSR1
+  gather_facts: no
+  
+  vars:
+    ospf_process_id: 1
+    router_id: "0.0.0.1"  # Area 0, Device 1 (CSR1)
+  
+  tasks:
+    - name: Configure OSPF Router ID
+      cisco.ios.ios_config:
+        lines:
+          - router-id {{ router_id }}
+        parents: router ospf {{ ospf_process_id }}
+        save_when: modified
+    
+    - name: Verify OSPF Router ID
+      cisco.ios.ios_command:
+        commands:
+          - show ip ospf
+      register: ospf_id
+    
+    - name: Display OSPF Router ID
+      debug:
+        msg: "{{ ospf_id.stdout_lines }}"
