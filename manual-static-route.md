@@ -1,4 +1,4 @@
-
+Static Routes added to each network node in the lab.
 # Router CSR1
 
 
