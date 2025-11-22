@@ -26,7 +26,7 @@ All network nodes require followings:
 - Configure IPv4 addresses on interfaces connecting to each node.
 - Setup remote management on all nodes using SSH (Secure Shell).
 - Setup Linux virtual machine in eve-ng, connect it to CSR1.
-- Configure CSR1  with ```ip route 0.0.0.0 0.0.0.0 <enter next hop ipv4 address>```. In this case Linux virtual machine.
+- Configure CSR1  with ```ip route 0.0.0.0 0.0.0.0 <enter next hop ipv4 address?```. In this case Linux virtual machine.
 - Configure static route on each network node and ensure connectivity across all networks. 
 - Configure static routes on the Linux virtual machine using CSR1 interface's IP.
 - Verify network connectivity to each network node on lab using ping and SSH.
