@@ -17,7 +17,7 @@ This lab shows how to configure network nodes in the OSPF area's using Ansible P
 
 OSPF lab is designed following Keith Bogart YouTube video - Understanding Link State Advertisments. Topology has two OSPF area's. Area 0 (backbone area) and Area 51. There are four Cisco routers and three cisco switches are used. Router "CSR1" is a border gateway router for both area's and "Switch 2" is part of OSPF Area 0 and EIGRP network.
 
-![OSPF Multiarea Logical View](imagesSPF-Multiarea-logical-design.png)
+![OSPF Multiarea Logical View](./images/OSPF-Multiarea-logical-design.png)
 
 ## Prerequisites
 
