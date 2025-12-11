@@ -6,6 +6,10 @@ Static Routes added to each network node in the lab.
 !
 configure terminal
 !
+hostname CSR1
+!
+username admin 
+!
 ip route 0.0.0.0 0.0.0.0 172.16.105.72
 ip route 1.2.3.0 255.255.255.0 GigabitEthernet0/1 111
 ip route 3.3.3.0 255.255.255.0 192.168.1.3 111
